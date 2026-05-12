@@ -1,0 +1,167 @@
+<div class="lc-wrapper">
+
+  <!-- ── Header ── -->
+  <div class="lc-header d-flex align-items-center justify-content-between px-4">
+    <span class="lc-title">Limit Calculator</span>
+    <span class="lc-readonly">Read Only</span>
+  </div>
+
+  <!-- ── Tabs ── -->
+  <div class="lc-tabs">
+    <button class="lc-tab" [class.active]="activeTab() === 'primary'" (click)="setTab('primary')">
+      Primary Borrower
+    </button>
+    <button class="lc-tab" [class.active]="activeTab() === 'guarantors'" (click)="setTab('guarantors')">
+      Guarantors
+    </button>
+  </div>
+
+  <div class="lc-body px-4 pb-4">
+
+    <!-- ════════════════════════════════════
+         PRIMARY BORROWER TAB
+    ════════════════════════════════════ -->
+    @if (activeTab() === 'primary') {
+      @if (primaryLoading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading…</span>
+        </div>
+      } @else {
+        <!-- Entity header -->
+        @for (owner of owners(); track owner.id; let first = $first) {
+          @if (first) {
+            <div class="entity-header mb-3">
+              <div class="entity-avatar">{{ owner.initials }}</div>
+              <div>
+                <div class="entity-label">BUSINESS NAME</div>
+                <div class="entity-name">{{ owner.name }}</div>
+              </div>
+            </div>
+          }
+        }
+
+        <!-- Metric cards -->
+        <div class="row g-0 metric-row mb-4">
+          @for (m of PRIMARY_METRICS; track m.key) {
+            <div class="col-3">
+              <div class="metric-card" [ngClass]="m.colorClass">
+                <div class="metric-label">{{ m.label }}</div>
+                <div class="metric-value">{{ fmtVal(primaryData()[m.key], m.format) }}</div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- 3 calculation sections -->
+        <div class="row g-3">
+          @for (sec of PRIMARY_SECTIONS; track sec.statusKey) {
+            <div class="col-4">
+              <div class="section-card">
+                <div class="section-header d-flex align-items-center justify-content-between">
+                  <span class="section-title text-amber">{{ sec.title }}</span>
+                  <span class="status-badge" [ngClass]="statusClass(getStatus(primaryData(), sec.statusKey))">
+                    {{ getStatus(primaryData(), sec.statusKey) }}
+                  </span>
+                </div>
+                <table class="calc-table">
+                  @for (row of sec.rows; track row.key) {
+                    <tr [class.highlight-row]="row.highlight">
+                      <td>{{ row.label }}</td>
+                      <td class="text-end"
+                          [class.text-amber]="row.highlight"
+                          [class.fw-semibold]="row.highlight">
+                        {{ fmtVal(primaryData()[row.key], row.format) }}
+                      </td>
+                    </tr>
+                  }
+                </table>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+
+    <!-- ════════════════════════════════════
+         GUARANTORS TAB
+    ════════════════════════════════════ -->
+    @if (activeTab() === 'guarantors') {
+      @if (guarantorLoading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading…</span>
+        </div>
+      } @else {
+        <!-- Guarantor header + select -->
+        <div class="guarantor-header mb-3 d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center gap-3">
+            <div class="entity-avatar">{{ selectedGuarantor()?.initials ?? '?' }}</div>
+            <div>
+              <div class="entity-label">SELECTED GUARANTOR</div>
+              <div class="entity-name">{{ selectedGuarantor()?.name ?? '—' }}</div>
+            </div>
+          </div>
+          <select
+            class="guarantor-select"
+            [value]="selectedGuarantor()?.customerId"
+            (change)="onGuarantorChange($any($event.target).value)">
+            @for (g of guarantors(); track g.id) {
+              <option [value]="g.customerId">{{ g.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Metric cards -->
+        <div class="row g-0 metric-row mb-4">
+          @for (m of GUARANTOR_METRICS; track m.key) {
+            <div class="col-3">
+              <div class="metric-card" [ngClass]="m.colorClass">
+                <div class="metric-label">{{ m.label }}</div>
+                <div class="metric-value">{{ fmtVal(guarantorData()[m.key], m.format) }}</div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- 3 calculation sections -->
+        <div class="row g-3">
+          @for (sec of GUARANTOR_SECTIONS; track sec.statusKey) {
+            <div class="col-4">
+              <div class="section-card">
+                <div class="section-header d-flex align-items-center justify-content-between">
+                  <span class="section-title text-amber">{{ sec.title }}</span>
+                  <span class="status-badge" [ngClass]="statusClass(getStatus(guarantorData(), sec.statusKey))">
+                    {{ getStatus(guarantorData(), sec.statusKey) }}
+                  </span>
+                </div>
+                <table class="calc-table">
+                  @for (row of sec.rows; track row.key) {
+                    <tr [class.highlight-row]="row.highlight">
+                      <td>{{ row.label }}</td>
+                      <td class="text-end"
+                          [class.text-amber]="row.highlight"
+                          [class.fw-semibold]="row.highlight">
+                        {{ fmtVal(guarantorData()[row.key], row.format) }}
+                      </td>
+                    </tr>
+                  }
+                  @if (sec.hasResult) {
+                    <tr class="result-row">
+                      <td>Result</td>
+                      <td class="text-end fw-semibold"
+                          [ngClass]="resultClass(getStatus(guarantorData(), sec.statusKey))">
+                        {{ resultText(getStatus(guarantorData(), sec.statusKey)) }}
+                      </td>
+                    </tr>
+                  }
+                </table>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+
+  </div>
+</div>
