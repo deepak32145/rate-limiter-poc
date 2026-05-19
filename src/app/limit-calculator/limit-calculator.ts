@@ -1,52 +1,134 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LimitCalculatorService, ApiData } from './limit-calculator.service';
+import { LimitCalculatorService } from './limit-calculator.service';
 
-export interface PersonEntry {
-  id: string;
-  name: string;
-  initials: string;
-  customerId: string;
-  applicationId: string;
-}
+const SESSION_KEY = 'lc_users';
 
-type FmtType = 'number_0' | 'number_2' | 'number_4' | 'percent_1' | 'times_2' | 'currency_0';
-
-interface RowConfig {
-  label: string;
-  key: string;
-  highlight?: boolean;
-  format: FmtType;
-}
-
-export interface SectionConfig {
-  title: string;
-  statusKey: string;
-  hasResult?: boolean;
-  rows: RowConfig[];
-}
-
-interface MetricConfig {
-  label: string;
-  key: string;
-  colorClass: string;
-  format: FmtType;
-}
-
-const SESSION_KEY = 'lc_entities';
-
-// Seeded into sessionStorage when empty – simulates what the host app puts there
-const SEED_SESSION: [PersonEntry[], PersonEntry[]] = [
-  [
-    { id: 'G1', name: 'Devon Yamashita', initials: 'DY', customerId: 'CUS001', applicationId: 'APP001' },
-    { id: 'G2', name: 'Alex Johnson',    initials: 'AJ', customerId: 'CUS002', applicationId: 'APP001' },
-    { id: 'G3', name: 'Maria Garcia',    initials: 'MG', customerId: 'CUS003', applicationId: 'APP001' },
-  ],
-  [
-    { id: 'O1', name: 'BillionBrain Garage Ventures', initials: 'BG', customerId: 'BUS001', applicationId: 'APP001' },
-  ],
+const SEED_SESSION: any[] = [
+  { appId: 'APP001', customerId: 'BUS001', customerName: 'BillionBrain Garage Ventures' },
+  { appId: 'APP001', customerId: 'CUS001', customerName: 'Devon Yamashita' },
+  { appId: 'APP001', customerId: 'CUS002', customerName: 'Alex Johnson' },
+  { appId: 'APP001', customerId: 'CUS003', customerName: 'Maria Garcia' },
 ];
+
+// ── lineId code → human label ──────────────────────────────
+const LINE_ID_LABELS: any = {
+  // Primary sections
+  BIZ_TOTAL_DEBT:   'Business Total Debt',
+  NEW_DEBT_REQ:     'New Debt Requested',
+  TOTAL_BIZ_DEBT:   'Total Business Debt',
+  STATED_REVENUE:   'Stated Revenue',
+  CO_SALES:         'Company Sales',
+  DEBT_SALES_RATIO: 'Total Debt to Sales',
+  MAX_ALLOWED:      'Maximum Allowed',
+  LOAN_ALLOWABLE:   'Loan Allowable',
+  LOC_ALLOWABLE:    'LOC Allowable',
+  TAX_LIENS:        'Unsatisfied Tax Liens',
+  JUDGMENTS:        'Unsatisfied Judgments',
+  CC_LIMIT:         'Existing Citizens CC Limit',
+  LOC_LIMIT:        'Existing Citizens LOC Limit',
+  NEW_CC_REQ:       'New Credit Card Request',
+  NEW_LOC_REQ:      'New Line of Credit Request',
+  BIZ_REVOLVING:    'Business Revolving Debt',
+  REVOLVING_PCT:    'Revolving Credit / Sales',
+  MAX_REVOLVING:    'Maximum Revolving Allowed',
+  ALLOWABLE_AMT:    'Allowable Amount',
+  AVG_BANK_BAL:     'Avg Bank Balance (3-mo DDA)',
+  TERM_LOAN_PMT:    'Term Loan Payment (Mo)',
+  LOC_PMT:          'Line of Credit Payment (Mo)',
+  CC_PMT:           'Credit Card Payment (Mo)',
+  TOTAL_REQ_PMTS:   'Total Requested Payments',
+  BAL_PMT_RATIO:    'Balance to Payment Ratio',
+  REQ_COVERAGE:     'Required Coverage',
+  LOAN_BTPR:        'Loan – BTPR Allowable',
+  LOC_BTPR:         'LOC – BTPR Allowable',
+  // Owner sections
+  STATED_ANN_INC:   'Stated Annual Income',
+  STATED_MO_INC:    'Stated Monthly Income',
+  MO_DEBT_SVC:      'Monthly Debt Service',
+  REQ_CC_MO:        'Requested CC (Mo)',
+  REQ_LOC_MO:       'Requested LOC (Mo)',
+  TOTAL_MO_DEBT:    'Total Monthly Debt',
+  UNSEC_DTI:        'Unsecured DTI',
+  MAX_DTI:          'Max Allowed DTI',
+  BUR_MO_INC:       'Bureau Monthly Income',
+  BUR_DEBT_SVC:     'Bureau Monthly Debt Service',
+  BUR_LOC_MO:       'Bureau Requested LOC (Mo)',
+  BUR_CC_MO:        'Bureau Requested CC (Mo)',
+  BUR_TOTAL_DEBT:   'Bureau Total Monthly Debt',
+  BUR_DTI:          'Bureau DTI',
+  BUR_MAX_DTI:      'Bureau Max Allowed DTI',
+  SEC_ANN_INC:      'Stated Annual Income (Secured)',
+  SEC_MO_INC:       'Stated Monthly Income (Secured)',
+  SEC_DEBT_SVC:     'Monthly Debt Service (Secured)',
+  TERM_LOAN_MO:     'Term Loan (Mo)',
+  LOC_MO:           'Line of Credit (Mo)',
+  CC_MO:            'Credit Card (Mo)',
+  SEC_DTI:          'Secured DTI',
+  SEC_MAX_DTI:      'Max Allowed DTI (Secured)',
+};
+
+// ── Section configs: which lineIds belong under each heading ──
+const PRIMARY_SECTIONS: any[] = [
+  {
+    heading: 'Total Debt to Sales',
+    lineIds: [
+      'BIZ_TOTAL_DEBT', 'NEW_DEBT_REQ', 'TOTAL_BIZ_DEBT', 'STATED_REVENUE',
+      'CO_SALES', 'DEBT_SALES_RATIO', 'MAX_ALLOWED', 'LOAN_ALLOWABLE',
+      'LOC_ALLOWABLE', 'TAX_LIENS', 'JUDGMENTS',
+    ],
+  },
+  {
+    heading: 'Revolving Credit as % of Sales',
+    lineIds: [
+      'CC_LIMIT', 'LOC_LIMIT', 'NEW_CC_REQ', 'NEW_LOC_REQ',
+      'BIZ_REVOLVING', 'REVOLVING_PCT', 'MAX_REVOLVING', 'ALLOWABLE_AMT',
+    ],
+  },
+  {
+    heading: 'Balance to Payment Ratio',
+    lineIds: [
+      'AVG_BANK_BAL', 'TERM_LOAN_PMT', 'LOC_PMT', 'CC_PMT',
+      'TOTAL_REQ_PMTS', 'BAL_PMT_RATIO', 'REQ_COVERAGE', 'LOAN_BTPR', 'LOC_BTPR',
+    ],
+  },
+];
+
+const OWNER_SECTIONS: any[] = [
+  {
+    heading: 'Stated DTI (Unsecured)',
+    lineIds: [
+      'STATED_ANN_INC', 'STATED_MO_INC', 'MO_DEBT_SVC',
+      'REQ_CC_MO', 'REQ_LOC_MO', 'TOTAL_MO_DEBT', 'UNSEC_DTI', 'MAX_DTI',
+    ],
+  },
+  {
+    heading: 'Bureau DTI (Modeled)',
+    lineIds: [
+      'BUR_MO_INC', 'BUR_DEBT_SVC', 'BUR_LOC_MO',
+      'BUR_CC_MO', 'BUR_TOTAL_DEBT', 'BUR_DTI', 'BUR_MAX_DTI',
+    ],
+  },
+  {
+    heading: 'Stated DTI (Secured)',
+    lineIds: [
+      'SEC_ANN_INC', 'SEC_MO_INC', 'SEC_DEBT_SVC',
+      'TERM_LOAN_MO', 'LOC_MO', 'CC_MO', 'TOTAL_REQ_PMTS', 'SEC_DTI', 'SEC_MAX_DTI',
+    ],
+  },
+];
+
+// ── Fallback mock data (used when API call errors) ───────────
+const PRIMARY_FALLBACK: any[] = PRIMARY_SECTIONS
+  .flatMap((s: any) => s.lineIds.map((id: any) => ({
+    appId: 'APP001', customerId: 'BUS001', lineId: id, lineIdValue: '—',
+  })));
+
+const OWNER_FALLBACK: any[] = OWNER_SECTIONS
+  .flatMap((s: any) => s.lineIds.map((id: any) => ({
+    appId: 'APP001', customerId: 'CUS001', lineId: id, lineIdValue: '—',
+  })));
 
 @Component({
   selector: 'app-limit-calculator',
@@ -57,211 +139,79 @@ const SEED_SESSION: [PersonEntry[], PersonEntry[]] = [
 export class LimitCalculator implements OnInit {
   private svc = inject(LimitCalculatorService);
 
-  activeTab    = signal<'primary' | 'guarantors'>('primary');
-  guarantors   = signal<PersonEntry[]>([]);
-  owners       = signal<PersonEntry[]>([]);
-  selectedGuarantor = signal<PersonEntry | null>(null);
-  primaryData       = signal<ApiData>({});
-  guarantorData     = signal<ApiData>({});
-  primaryLoading    = signal(true);
-  guarantorLoading  = signal(true);
+  activeTab: any = 'primary';
 
-  // ── Primary Borrower tab config ───────────────────────────
-  readonly PRIMARY_METRICS: MetricConfig[] = [
-    { label: 'TOTAL DEBT TO SALES', key: 'metric_1', colorClass: 'metric-red',   format: 'percent_1' },
-    { label: 'REVOLVING / SALES',   key: 'metric_2', colorClass: 'metric-green', format: 'percent_1' },
-    { label: 'BALANCE / PAYMENT',   key: 'metric_3', colorClass: 'metric-amber', format: 'times_2'   },
-    { label: 'COMPANY SALES',       key: 'metric_4', colorClass: 'metric-blue',  format: 'currency_0' },
-  ];
+  primaryUser: any = null;
+  owners: any[] = [];
+  selectedOwner: any = null;
 
-  readonly PRIMARY_SECTIONS: SectionConfig[] = [
-    {
-      title: 'Total Debt to Sales',
-      statusKey: 'status_1',
-      rows: [
-        { label: 'Business Total Debt',    key: 'Business Total Debt',    format: 'number_0' },
-        { label: 'New Debt Requested',     key: 'New Debt Requested',     format: 'number_0' },
-        { label: 'Total Business Debt',    key: 'Total Business Debt',    format: 'number_0' },
-        { label: 'Stated Revenue',         key: 'Stated Revenue',         format: 'number_0' },
-        { label: 'Company Sales',          key: 'Company Sales',          format: 'number_0' },
-        { label: 'Total Debt to Sales',    key: 'Total Debt to Sales',    format: 'number_4', highlight: true },
-        { label: 'Maximum Allowed',        key: 'Maximum Allowed',        format: 'number_2' },
-        { label: 'Loan Allowable',         key: 'Loan Allowable',         format: 'number_2' },
-        { label: 'LOC Allowable',          key: 'LOC Allowable',          format: 'number_2' },
-        { label: 'Unsatisfied Tax Liens',  key: 'Unsatisfied Tax Liens',  format: 'number_0' },
-        { label: 'Unsatisfied Judgments',  key: 'Unsatisfied Judgments',  format: 'number_0' },
-      ],
-    },
-    {
-      title: 'Revolving Credit as % of Sales',
-      statusKey: 'status_2',
-      rows: [
-        { label: 'Existing Citizens CC Limit',  key: 'Existing Citizens CC Limit',  format: 'number_0' },
-        { label: 'Existing Citizens LOC Limit', key: 'Existing Citizens LOC Limit', format: 'number_0' },
-        { label: 'New Credit Card Request',     key: 'New Credit Card Request',     format: 'number_0' },
-        { label: 'New Line of Credit Request',  key: 'New Line of Credit Request',  format: 'number_0' },
-        { label: 'Business Revolving Debt',     key: 'Business Revolving Debt',     format: 'number_0' },
-        { label: 'Company Sales',               key: 'Company Sales',               format: 'number_0' },
-        { label: 'Revolving Credit / Sales',    key: 'Revolving Credit / Sales',    format: 'number_4', highlight: true },
-        { label: 'Maximum Allowed',             key: 'Max Revolving Allowed',       format: 'number_2' },
-        { label: 'Allowable Amount',            key: 'Allowable Amount',            format: 'number_0' },
-      ],
-    },
-    {
-      title: 'Balance to Payment Ratio (4x required)',
-      statusKey: 'status_3',
-      rows: [
-        { label: 'Avg Bank Balance (3-mo DDA)',   key: 'Avg Bank Balance (3-mo DDA)',  format: 'number_2' },
-        { label: 'Term Loan Payment (Mo)',         key: 'Term Loan Payment (Mo)',        format: 'number_2' },
-        { label: 'Line of Credit Payment (Mo)',    key: 'Line of Credit Payment (Mo)',   format: 'number_2' },
-        { label: 'Credit Card Payment (Mo)',       key: 'Credit Card Payment (Mo)',      format: 'number_2' },
-        { label: 'Total Requested Payments',       key: 'Total Requested Payments',      format: 'number_2' },
-        { label: 'Balance to Payment Ratio',       key: 'Balance to Payment Ratio',      format: 'times_2', highlight: true },
-        { label: 'Required Coverage',              key: 'Required Coverage',             format: 'times_2' },
-        { label: 'Loan – BTPR Allowable',    key: 'Loan - BTPR Allowable',         format: 'number_2' },
-        { label: 'LOC – BTPR Allowable',     key: 'LOC - BTPR Allowable',          format: 'number_2' },
-      ],
-    },
-  ];
+  primaryResults: any[] = [];
+  ownerResults: any[] = [];
 
-  // ── Guarantors tab config ─────────────────────────────────
-  readonly GUARANTOR_METRICS: MetricConfig[] = [
-    { label: 'STATED MONTHLY INCOME', key: 'metric_1', colorClass: 'metric-red',   format: 'number_2' },
-    { label: 'BUREAU MONTHLY INCOME', key: 'metric_2', colorClass: 'metric-green', format: 'number_0' },
-    { label: 'MONTHLY DEBT SERVICE',  key: 'metric_3', colorClass: 'metric-amber', format: 'number_0' },
-    { label: 'UNSECURED DTI',         key: 'metric_4', colorClass: 'metric-blue',  format: 'number_4' },
-  ];
+  readonly lineIdLabels: any = LINE_ID_LABELS;
+  readonly primarySections: any[] = PRIMARY_SECTIONS;
+  readonly ownerSections: any[] = OWNER_SECTIONS;
 
-  readonly GUARANTOR_SECTIONS: SectionConfig[] = [
-    {
-      title: 'Stated DTI (Unsecured) – TCL ≤ $50K',
-      statusKey: 'status_1',
-      rows: [
-        { label: 'Stated Annual Income',  key: 'Stated Annual Income',  format: 'number_0' },
-        { label: 'Stated Monthly Income', key: 'Stated Monthly Income', format: 'number_2' },
-        { label: 'Monthly Debt Service',  key: 'Monthly Debt Service',  format: 'number_0' },
-        { label: 'Requested CC (Mo)',     key: 'Requested CC (Mo)',     format: 'number_0' },
-        { label: 'Requested LOC (Mo)',    key: 'Requested LOC (Mo)',    format: 'number_4' },
-        { label: 'Total Monthly Debt',    key: 'Total Monthly Debt',    format: 'number_4' },
-        { label: 'Unsecured DTI',         key: 'Unsecured DTI',         format: 'number_4', highlight: true },
-        { label: 'Max Allowed DTI',       key: 'Max Allowed DTI',       format: 'number_2' },
-      ],
-    },
-    {
-      title: 'Modeled DTI (Bureau-Based) – TCL ≤ $50K',
-      statusKey: 'status_2',
-      rows: [
-        { label: 'Bureau Monthly Income',  key: 'Bureau Monthly Income',       format: 'number_0' },
-        { label: 'Monthly Debt Service',   key: 'Bureau Monthly Debt Service', format: 'number_0' },
-        { label: 'Requested LOC (Mo)',     key: 'Bureau Requested LOC (Mo)',   format: 'number_4' },
-        { label: 'Requested CC (Mo)',      key: 'Bureau Requested CC (Mo)',    format: 'number_0' },
-        { label: 'Total Monthly Debt',     key: 'Bureau Total Monthly Debt',   format: 'number_4' },
-        { label: 'Bureau DTI',             key: 'Bureau DTI',                  format: 'number_4', highlight: true },
-        { label: 'Max Allowed DTI',        key: 'Bureau Max Allowed DTI',      format: 'number_2' },
-      ],
-    },
-    {
-      title: 'Stated DTI (Secured) – TCL > $50K',
-      statusKey: 'status_3',
-      rows: [
-        { label: 'Stated Annual Income',  key: 'Secured Annual Income',         format: 'number_0' },
-        { label: 'Stated Monthly Income', key: 'Secured Monthly Income',        format: 'number_2' },
-        { label: 'Monthly Debt Service',  key: 'Secured Monthly Debt Service',  format: 'number_0' },
-        { label: 'Term Loan (Mo)',        key: 'Term Loan (Mo)',                 format: 'number_4' },
-        { label: 'Line of Credit (Mo)',   key: 'Line of Credit (Mo)',            format: 'number_2' },
-        { label: 'Credit Card (Mo)',      key: 'Credit Card (Mo)',               format: 'number_0' },
-        { label: 'Total Requested Pmts', key: 'Total Requested Pmts',           format: 'number_4' },
-        { label: 'Secured DTI',           key: 'Secured DTI',                   format: 'number_4', highlight: true },
-        { label: 'Max Allowed DTI',       key: 'Secured Max Allowed DTI',       format: 'number_2' },
-      ],
-    },
-  ];
-
-  // ── Lifecycle ─────────────────────────────────────────────
   ngOnInit(): void {
-    if (!sessionStorage.getItem(SESSION_KEY)) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(SEED_SESSION));
+    let users: any[] = SEED_SESSION;
+    try {
+      const stored = sessionStorage.getItem(SESSION_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // re-seed if stored data is not the expected flat array with customerId field
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].customerId) {
+          users = parsed;
+        } else {
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(SEED_SESSION));
+        }
+      } else {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(SEED_SESSION));
+      }
+    } catch (e) {
+      // sessionStorage unavailable — use SEED_SESSION already assigned above
     }
 
-    const parsed: [PersonEntry[], PersonEntry[]] = JSON.parse(sessionStorage.getItem(SESSION_KEY)!);
-    const guarantorList = parsed[0] ?? [];
-    const ownerList     = parsed[1] ?? [];
+    this.primaryUser   = users[0];
+    this.owners        = users.slice(1);
+    this.selectedOwner = this.owners[0] ?? null;
 
-    this.guarantors.set(guarantorList);
-    this.owners.set(ownerList);
+    this.loadPrimaryData(this.primaryUser.appId, this.primaryUser.customerId);
+  }
 
-    // Load primary borrower (owners[0])
-    const owner = ownerList[0];
-    if (owner) {
-      this.loadPrimaryData(owner.applicationId, owner.customerId);
-    }
+  onOwnerChange(customerId: any): void {
+    const owner = this.owners.find((o: any) => o.customerId === customerId) ?? null;
+    this.selectedOwner = owner;
+    if (owner) this.loadOwnerData(owner.appId, owner.customerId);
+  }
 
-    // Auto-select first guarantor and load their data
-    const firstG = guarantorList[0] ?? null;
-    this.selectedGuarantor.set(firstG);
-    if (firstG) {
-      this.loadGuarantorData(firstG.applicationId, firstG.customerId);
+  setTab(tab: any): void {
+    this.activeTab = tab;
+    if (tab === 'owners' && this.ownerResults.length === 0 && this.selectedOwner) {
+      this.loadOwnerData(this.selectedOwner.appId, this.selectedOwner.customerId);
     }
   }
 
-  // ── Guarantor select change ───────────────────────────────
-  onGuarantorChange(customerId: string): void {
-    const g = this.guarantors().find(x => x.customerId === customerId) ?? null;
-    this.selectedGuarantor.set(g);
-    if (g) this.loadGuarantorData(g.applicationId, g.customerId);
+  getSection(results: any[], lineIds: any[]): any[] {
+    return lineIds
+      .map((id: any) => results.find((r: any) => r.lineId === id))
+      .filter(Boolean);
   }
 
-  // ── API calls ─────────────────────────────────────────────
-  private loadPrimaryData(applicationId: string, customerId: string): void {
-    this.primaryLoading.set(true);
-    this.svc.getCalculatorData(applicationId, customerId).subscribe(data => {
-      this.primaryData.set(data);
-      this.primaryLoading.set(false);
+  getLabel(lineId: any): any {
+    return this.lineIdLabels[lineId] ?? lineId;
+  }
+
+  private loadPrimaryData(appId: any, customerId: any): void {
+    this.svc.getCalculatorData(appId, customerId).subscribe({
+      next: (data: any) => { this.primaryResults = data.length ? data : PRIMARY_FALLBACK; },
+      error: () => { this.primaryResults = PRIMARY_FALLBACK; },
     });
   }
 
-  private loadGuarantorData(applicationId: string, customerId: string): void {
-    this.guarantorLoading.set(true);
-    this.svc.getCalculatorData(applicationId, customerId).subscribe(data => {
-      this.guarantorData.set(data);
-      this.guarantorLoading.set(false);
+  private loadOwnerData(appId: any, customerId: any): void {
+    this.svc.getCalculatorData(appId, customerId).subscribe({
+      next: (data: any) => { this.ownerResults = data.length ? data : OWNER_FALLBACK; },
+      error: () => { this.ownerResults = OWNER_FALLBACK; },
     });
-  }
-
-  // ── Helpers ───────────────────────────────────────────────
-  setTab(tab: 'primary' | 'guarantors'): void { this.activeTab.set(tab); }
-
-  getStatus(data: ApiData, statusKey: string): string {
-    return String(data[statusKey] ?? '');
-  }
-
-  statusClass(status: string): string {
-    if (status === 'PASSES')       return 'badge-passes';
-    if (status === 'DECLINE')      return 'badge-decline';
-    return 'badge-overlimit';
-  }
-
-  resultText(status: string): string {
-    if (status === 'PASSES')  return 'Passes Rule';
-    if (status === 'DECLINE') return 'Decline / Counter Offer';
-    return 'Fails – ' + status;
-  }
-
-  resultClass(status: string): string {
-    return status === 'PASSES' ? 'text-success' : 'text-danger';
-  }
-
-  fmtVal(value: ApiData[string] | undefined, fmt: FmtType): string {
-    if (value == null) return '—';
-    const n = Number(value);
-    if (isNaN(n)) return String(value);
-    switch (fmt) {
-      case 'number_0':   return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-      case 'number_2':   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      case 'number_4':   return n.toFixed(4);
-      case 'percent_1':  return (n * 100).toFixed(1) + '%';
-      case 'times_2':    return n.toFixed(2) + 'x';
-      case 'currency_0': return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-    }
   }
 }

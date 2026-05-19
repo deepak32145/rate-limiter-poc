@@ -1,149 +1,89 @@
 <div class="lc-wrapper">
 
-  <!-- ── Header ── -->
+  <!-- Header -->
   <div class="lc-header d-flex align-items-center justify-content-between px-4">
     <span class="lc-title">Limit Calculator</span>
     <span class="lc-readonly">Read Only</span>
   </div>
 
-  <!-- ── Tabs ── -->
+  <!-- Tabs -->
   <div class="lc-tabs">
-    <button class="lc-tab" [class.active]="activeTab() === 'primary'" (click)="setTab('primary')">
+    <button class="lc-tab" [class.active]="activeTab === 'primary'" (click)="setTab('primary')">
       Primary Borrower
     </button>
-    <button class="lc-tab" [class.active]="activeTab() === 'guarantors'" (click)="setTab('guarantors')">
-      Guarantors
+    <button class="lc-tab" [class.active]="activeTab === 'owners'" (click)="setTab('owners')">
+      Owners
     </button>
   </div>
 
   <div class="lc-body px-4 pb-4">
 
-    <!-- ════════════════════════════════════
-         PRIMARY BORROWER TAB
-    ════════════════════════════════════ -->
-    <ng-container *ngIf="activeTab() === 'primary'">
+    <!-- PRIMARY BORROWER TAB -->
+    <ng-container *ngIf="activeTab === 'primary'">
 
-      <!-- Loading -->
-      <div class="loading-state" *ngIf="primaryLoading()">
-        <div class="spinner"></div>
-        <span>Loading…</span>
+      <div class="entity-header mb-3" *ngIf="primaryUser">
+        <div>
+          <div class="entity-label">PRIMARY BORROWER</div>
+          <div class="entity-name">{{ primaryUser.customerName }}</div>
+        </div>
       </div>
 
-      <ng-container *ngIf="!primaryLoading()">
-
-        <!-- Entity header (first owner only) -->
-        <ng-container *ngFor="let owner of owners(); let first = first">
-          <div class="entity-header mb-3" *ngIf="first">
-            <div class="entity-avatar">{{ owner.initials }}</div>
-            <div>
-              <div class="entity-label">BUSINESS NAME</div>
-              <div class="entity-name">{{ owner.name }}</div>
+      <div class="row g-3">
+        <div class="col-4" *ngFor="let section of primarySections">
+          <div class="section-card">
+            <div class="section-header">
+              <span class="section-title text-amber">{{ section.heading }}</span>
             </div>
-          </div>
-        </ng-container>
-
-        <!-- Metric cards -->
-        <div class="row g-0 metric-row mb-4">
-          <div class="col-3" *ngFor="let m of PRIMARY_METRICS">
-            <div class="metric-card" [ngClass]="m.colorClass">
-              <div class="metric-label">{{ m.label }}</div>
-              <div class="metric-value">{{ fmtVal(primaryData()[m.key], m.format) }}</div>
-            </div>
+            <table class="calc-table">
+              <tr *ngFor="let item of getSection(primaryResults, section.lineIds)">
+                <td>{{ getLabel(item.lineId) }}</td>
+                <td>{{ item.lineIdValue }}</td>
+              </tr>
+            </table>
           </div>
         </div>
+      </div>
 
-        <!-- 3 calculation sections -->
-        <div class="row g-3">
-          <div class="col-4" *ngFor="let sec of PRIMARY_SECTIONS">
-            <div class="section-card">
-              <div class="section-header d-flex align-items-center justify-content-between">
-                <span class="section-title text-amber">{{ sec.title }}</span>
-                <span class="status-badge" [ngClass]="statusClass(getStatus(primaryData(), sec.statusKey))">
-                  {{ getStatus(primaryData(), sec.statusKey) }}
-                </span>
-              </div>
-              <table class="calc-table">
-                <tr *ngFor="let row of sec.rows" [class.highlight-row]="row.highlight">
-                  <td>{{ row.label }}</td>
-                  <td class="text-end"
-                      [class.text-amber]="row.highlight"
-                      [class.fw-semibold]="row.highlight">
-                    {{ fmtVal(primaryData()[row.key], row.format) }}
-                  </td>
-                </tr>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </ng-container>
     </ng-container>
 
-    <!-- ════════════════════════════════════
-         GUARANTORS TAB
-    ════════════════════════════════════ -->
-    <ng-container *ngIf="activeTab() === 'guarantors'">
+    <!-- OWNERS TAB -->
+    <ng-container *ngIf="activeTab === 'owners'">
 
-      <!-- Loading -->
-      <div class="loading-state" *ngIf="guarantorLoading()">
-        <div class="spinner"></div>
-        <span>Loading…</span>
+      <div class="entity-header mb-3 d-flex align-items-center justify-content-between">
+        <div *ngIf="selectedOwner">
+          <div class="entity-label">SELECTED OWNER</div>
+          <div class="entity-name">{{ selectedOwner.customerName }}</div>
+        </div>
+        <select
+          class="guarantor-select"
+          [value]="selectedOwner?.customerId"
+          (change)="onOwnerChange($any($event.target).value)">
+          <option *ngFor="let o of owners" [value]="o.customerId">{{ o.customerName }}</option>
+        </select>
       </div>
 
-      <ng-container *ngIf="!guarantorLoading()">
-
-        <!-- Guarantor header + select -->
-        <div class="guarantor-header mb-3 d-flex align-items-center justify-content-between">
-          <div class="d-flex align-items-center gap-3">
-            <div class="entity-avatar">{{ selectedGuarantor()?.initials ?? '?' }}</div>
-            <div>
-              <div class="entity-label">SELECTED GUARANTOR</div>
-              <div class="entity-name">{{ selectedGuarantor()?.name ?? '—' }}</div>
-            </div>
-          </div>
-          <select
-            class="guarantor-select"
-            [value]="selectedGuarantor()?.customerId"
-            (change)="onGuarantorChange($any($event.target).value)">
-            <option *ngFor="let g of guarantors()" [value]="g.customerId">{{ g.name }}</option>
-          </select>
-        </div>
-
-        <!-- Metric cards -->
-        <div class="row g-0 metric-row mb-4">
-          <div class="col-3" *ngFor="let m of GUARANTOR_METRICS">
-            <div class="metric-card" [ngClass]="m.colorClass">
-              <div class="metric-label">{{ m.label }}</div>
-              <div class="metric-value">{{ fmtVal(guarantorData()[m.key], m.format) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3 calculation sections -->
+      <ng-container *ngIf="ownerResults.length > 0">
         <div class="row g-3">
-          <div class="col-4" *ngFor="let sec of GUARANTOR_SECTIONS">
+          <div class="col-4" *ngFor="let section of ownerSections">
             <div class="section-card">
-              <div class="section-header d-flex align-items-center justify-content-between">
-                <span class="section-title text-amber">{{ sec.title }}</span>
-                <span class="status-badge" [ngClass]="statusClass(getStatus(guarantorData(), sec.statusKey))">
-                  {{ getStatus(guarantorData(), sec.statusKey) }}
-                </span>
+              <div class="section-header">
+                <span class="section-title text-amber">{{ section.heading }}</span>
               </div>
               <table class="calc-table">
-                <tr *ngFor="let row of sec.rows" [class.highlight-row]="row.highlight">
-                  <td>{{ row.label }}</td>
-                  <td class="text-end"
-                      [class.text-amber]="row.highlight"
-                      [class.fw-semibold]="row.highlight">
-                    {{ fmtVal(guarantorData()[row.key], row.format) }}
-                  </td>
+                <tr *ngFor="let item of getSection(ownerResults, section.lineIds)">
+                  <td>{{ getLabel(item.lineId) }}</td>
+                  <td>{{ item.lineIdValue }}</td>
                 </tr>
               </table>
             </div>
           </div>
         </div>
-
       </ng-container>
+
+      <div class="loading-state" *ngIf="ownerResults.length === 0">
+        <span>Select an owner above to load data.</span>
+      </div>
+
     </ng-container>
 
   </div>
