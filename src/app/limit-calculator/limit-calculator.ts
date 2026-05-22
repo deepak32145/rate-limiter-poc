@@ -6,10 +6,10 @@ import { LimitCalculatorService } from './limit-calculator.service';
 const SESSION_KEY = 'lc_users';
 
 const SEED_SESSION: any[] = [
-  { appId: 'APP001', customerId: 'BUS001', customerName: 'BillionBrain Garage Ventures' },
-  { appId: 'APP001', customerId: 'CUS001', customerName: 'Devon Yamashita' },
-  { appId: 'APP001', customerId: 'CUS002', customerName: 'Alex Johnson' },
-  { appId: 'APP001', customerId: 'CUS003', customerName: 'Maria Garcia' },
+  { applicationId: 'APP001', customerId: 'BUS001', customerName: 'BillionBrain Garage Ventures' },
+  { applicationId: 'APP001', customerId: 'CUS001', customerName: 'Devon Yamashita' },
+  { applicationId: 'APP001', customerId: 'CUS002', customerName: 'Alex Johnson' },
+  { applicationId: 'APP001', customerId: 'CUS003', customerName: 'Maria Garcia' },
 ];
 
 // ── lineId code → human label ──────────────────────────────
@@ -73,6 +73,7 @@ const LINE_ID_LABELS: any = {
 const PRIMARY_SECTIONS: any[] = [
   {
     heading: 'Total Debt to Sales',
+    resultLineId: 'DEBT_SALES_RATIO',
     lineIds: [
       'BIZ_TOTAL_DEBT', 'NEW_DEBT_REQ', 'TOTAL_BIZ_DEBT', 'STATED_REVENUE',
       'CO_SALES', 'DEBT_SALES_RATIO', 'MAX_ALLOWED', 'LOAN_ALLOWABLE',
@@ -81,6 +82,7 @@ const PRIMARY_SECTIONS: any[] = [
   },
   {
     heading: 'Revolving Credit as % of Sales',
+    resultLineId: 'REVOLVING_PCT',
     lineIds: [
       'CC_LIMIT', 'LOC_LIMIT', 'NEW_CC_REQ', 'NEW_LOC_REQ',
       'BIZ_REVOLVING', 'REVOLVING_PCT', 'MAX_REVOLVING', 'ALLOWABLE_AMT',
@@ -88,6 +90,7 @@ const PRIMARY_SECTIONS: any[] = [
   },
   {
     heading: 'Balance to Payment Ratio',
+    resultLineId: 'BAL_PMT_RATIO',
     lineIds: [
       'AVG_BANK_BAL', 'TERM_LOAN_PMT', 'LOC_PMT', 'CC_PMT',
       'TOTAL_REQ_PMTS', 'BAL_PMT_RATIO', 'REQ_COVERAGE', 'LOAN_BTPR', 'LOC_BTPR',
@@ -98,6 +101,7 @@ const PRIMARY_SECTIONS: any[] = [
 const OWNER_SECTIONS: any[] = [
   {
     heading: 'Stated DTI (Unsecured)',
+    resultLineId: 'UNSEC_DTI',
     lineIds: [
       'STATED_ANN_INC', 'STATED_MO_INC', 'MO_DEBT_SVC',
       'REQ_CC_MO', 'REQ_LOC_MO', 'TOTAL_MO_DEBT', 'UNSEC_DTI', 'MAX_DTI',
@@ -105,6 +109,7 @@ const OWNER_SECTIONS: any[] = [
   },
   {
     heading: 'Bureau DTI (Modeled)',
+    resultLineId: 'BUR_DTI',
     lineIds: [
       'BUR_MO_INC', 'BUR_DEBT_SVC', 'BUR_LOC_MO',
       'BUR_CC_MO', 'BUR_TOTAL_DEBT', 'BUR_DTI', 'BUR_MAX_DTI',
@@ -112,6 +117,7 @@ const OWNER_SECTIONS: any[] = [
   },
   {
     heading: 'Stated DTI (Secured)',
+    resultLineId: 'SEC_DTI',
     lineIds: [
       'SEC_ANN_INC', 'SEC_MO_INC', 'SEC_DEBT_SVC',
       'TERM_LOAN_MO', 'LOC_MO', 'CC_MO', 'TOTAL_REQ_PMTS', 'SEC_DTI', 'SEC_MAX_DTI',
@@ -122,12 +128,12 @@ const OWNER_SECTIONS: any[] = [
 // ── Fallback mock data (used when API call errors) ───────────
 const PRIMARY_FALLBACK: any[] = PRIMARY_SECTIONS
   .flatMap((s: any) => s.lineIds.map((id: any) => ({
-    appId: 'APP001', customerId: 'BUS001', lineId: id, lineIdValue: '—',
+    applicationId: 'APP001', customerId: 'BUS001', applicationScreenTabId: 'CLC', lineDetails: id, calculatedAmt: '—',
   })));
 
 const OWNER_FALLBACK: any[] = OWNER_SECTIONS
   .flatMap((s: any) => s.lineIds.map((id: any) => ({
-    appId: 'APP001', customerId: 'CUS001', lineId: id, lineIdValue: '—',
+    applicationId: 'APP001', customerId: 'CUS001', applicationScreenTabId: 'CLC', lineDetails: id, calculatedAmt: '—',
   })));
 
 @Component({
@@ -145,12 +151,12 @@ export class LimitCalculator implements OnInit {
   owners: any[] = [];
   selectedOwner: any = null;
 
-  primaryResults: any[] = [];
-  ownerResults: any[] = [];
+  primarySectionRows: { heading: string; result: { label: string; calculatedAmt: any } | null; rows: { label: string; calculatedAmt: any }[] }[] = [];
+  ownerSectionRows:   { heading: string; result: { label: string; calculatedAmt: any } | null; rows: { label: string; calculatedAmt: any }[] }[] = [];
+  hasOwnerData = false;
 
-  readonly lineIdLabels: any = LINE_ID_LABELS;
-  readonly primarySections: any[] = PRIMARY_SECTIONS;
-  readonly ownerSections: any[] = OWNER_SECTIONS;
+  private primaryResults: any[] = [];
+  private ownerResults:   any[] = [];
 
   ngOnInit(): void {
     let users: any[] = SEED_SESSION;
@@ -175,43 +181,70 @@ export class LimitCalculator implements OnInit {
     this.owners        = users.slice(1);
     this.selectedOwner = this.owners[0] ?? null;
 
-    this.loadPrimaryData(this.primaryUser.appId, this.primaryUser.customerId);
+    this.loadPrimaryData(this.primaryUser.applicationId, this.primaryUser.customerId);
   }
 
   onOwnerChange(customerId: any): void {
     const owner = this.owners.find((o: any) => o.customerId === customerId) ?? null;
     this.selectedOwner = owner;
-    if (owner) this.loadOwnerData(owner.appId, owner.customerId);
+    if (owner) this.loadOwnerData(owner.applicationId, owner.customerId);
   }
 
   setTab(tab: any): void {
     this.activeTab = tab;
-    if (tab === 'owners' && this.ownerResults.length === 0 && this.selectedOwner) {
-      this.loadOwnerData(this.selectedOwner.appId, this.selectedOwner.customerId);
+    if (tab === 'owners' && !this.hasOwnerData && this.selectedOwner) {
+      this.loadOwnerData(this.selectedOwner.applicationId, this.selectedOwner.customerId);
     }
   }
 
-  getSection(results: any[], lineIds: any[]): any[] {
-    return lineIds
-      .map((id: any) => results.find((r: any) => r.lineId === id))
-      .filter(Boolean);
+  private formatValue(raw: any): string {
+    const n = Number(raw);
+    return (!isNaN(n) && raw !== '' && raw !== null) ? n.toFixed(2) : String(raw);
   }
 
-  getLabel(lineId: any): any {
-    return this.lineIdLabels[lineId] ?? lineId;
+  private buildSectionRows(
+    results: any[],
+    sections: any[],
+  ): { heading: string; result: { label: string; calculatedAmt: any } | null; rows: { label: string; calculatedAmt: any }[] }[] {
+    return sections.map((s: any) => {
+      const resultRaw = results.find((r: any) => r.lineDetails === s.resultLineId) ?? null;
+      const result = resultRaw
+        ? { label: LINE_ID_LABELS[resultRaw.lineDetails] ?? resultRaw.lineDetails, calculatedAmt: this.formatValue(resultRaw.calculatedAmt) }
+        : null;
+      const rows = s.lineIds
+        .filter((id: any) => id !== s.resultLineId)
+        .map((id: any) => results.find((r: any) => r.lineDetails === id))
+        .filter(Boolean)
+        .map((r: any) => ({ label: LINE_ID_LABELS[r.lineDetails] ?? r.lineDetails, calculatedAmt: this.formatValue(r.calculatedAmt) }));
+      return { heading: s.heading, result, rows };
+    });
   }
 
   private loadPrimaryData(appId: any, customerId: any): void {
     this.svc.getCalculatorData(appId, customerId).subscribe({
-      next: (data: any) => { this.primaryResults = data.length ? data : PRIMARY_FALLBACK; },
-      error: () => { this.primaryResults = PRIMARY_FALLBACK; },
+      next: (data: any) => {
+        this.primaryResults    = data.length ? data : PRIMARY_FALLBACK;
+        this.primarySectionRows = this.buildSectionRows(this.primaryResults, PRIMARY_SECTIONS);
+      },
+      error: () => {
+        this.primaryResults    = PRIMARY_FALLBACK;
+        this.primarySectionRows = this.buildSectionRows(PRIMARY_FALLBACK, PRIMARY_SECTIONS);
+      },
     });
   }
 
   private loadOwnerData(appId: any, customerId: any): void {
     this.svc.getCalculatorData(appId, customerId).subscribe({
-      next: (data: any) => { this.ownerResults = data.length ? data : OWNER_FALLBACK; },
-      error: () => { this.ownerResults = OWNER_FALLBACK; },
+      next: (data: any) => {
+        this.ownerResults     = data.length ? data : OWNER_FALLBACK;
+        this.ownerSectionRows = this.buildSectionRows(this.ownerResults, OWNER_SECTIONS);
+        this.hasOwnerData     = true;
+      },
+      error: () => {
+        this.ownerResults     = OWNER_FALLBACK;
+        this.ownerSectionRows = this.buildSectionRows(OWNER_FALLBACK, OWNER_SECTIONS);
+        this.hasOwnerData     = true;
+      },
     });
   }
 }

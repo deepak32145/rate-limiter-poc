@@ -29,15 +29,16 @@
       </div>
 
       <div class="row g-3">
-        <div class="col-4" *ngFor="let section of primarySections">
+        <div class="col-4" *ngFor="let section of primarySectionRows">
           <div class="section-card">
             <div class="section-header">
               <span class="section-title text-amber">{{ section.heading }}</span>
+              <span *ngIf="section.result" class="section-result">{{ section.result.calculatedAmt }}</span>
             </div>
             <table class="calc-table">
-              <tr *ngFor="let item of getSection(primaryResults, section.lineIds)">
-                <td>{{ getLabel(item.lineId) }}</td>
-                <td>{{ item.lineIdValue }}</td>
+              <tr *ngFor="let item of section.rows">
+                <td>{{ item.label }}</td>
+                <td>{{ item.calculatedAmt }}</td>
               </tr>
             </table>
           </div>
@@ -55,24 +56,26 @@
           <div class="entity-name">{{ selectedOwner.customerName }}</div>
         </div>
         <select
+          #ownerSelect
           class="guarantor-select"
           [value]="selectedOwner?.customerId"
-          (change)="onOwnerChange($any($event.target).value)">
+          (change)="onOwnerChange(ownerSelect.value)">
           <option *ngFor="let o of owners" [value]="o.customerId">{{ o.customerName }}</option>
         </select>
       </div>
 
-      <ng-container *ngIf="ownerResults.length > 0">
+      <ng-container *ngIf="hasOwnerData">
         <div class="row g-3">
-          <div class="col-4" *ngFor="let section of ownerSections">
+          <div class="col-4" *ngFor="let section of ownerSectionRows">
             <div class="section-card">
               <div class="section-header">
                 <span class="section-title text-amber">{{ section.heading }}</span>
+                <span *ngIf="section.result" class="section-result">{{ section.result.calculatedAmt }}</span>
               </div>
               <table class="calc-table">
-                <tr *ngFor="let item of getSection(ownerResults, section.lineIds)">
-                  <td>{{ getLabel(item.lineId) }}</td>
-                  <td>{{ item.lineIdValue }}</td>
+                <tr *ngFor="let item of section.rows">
+                  <td>{{ item.label }}</td>
+                  <td>{{ item.calculatedAmt }}</td>
                 </tr>
               </table>
             </div>
@@ -80,7 +83,7 @@
         </div>
       </ng-container>
 
-      <div class="loading-state" *ngIf="ownerResults.length === 0">
+      <div class="loading-state" *ngIf="!hasOwnerData">
         <span>Select an owner above to load data.</span>
       </div>
 
