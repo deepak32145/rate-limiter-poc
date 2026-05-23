@@ -2,6 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LimitCalculatorService } from './limit-calculator.service';
+import lineIdLabelsJson from './line-id-labels.json';
+const LINE_ID_LABELS: Record<string, string> = lineIdLabelsJson;
 
 const SESSION_KEY = 'lc_users';
 
@@ -12,116 +14,46 @@ const SEED_SESSION: any[] = [
   { applicationId: 'APP001', customerId: 'CUS003', customerName: 'Maria Garcia' },
 ];
 
-// ── lineId code → human label ──────────────────────────────
-const LINE_ID_LABELS: any = {
-  // Primary sections
-  BIZ_TOTAL_DEBT:   'Business Total Debt',
-  NEW_DEBT_REQ:     'New Debt Requested',
-  TOTAL_BIZ_DEBT:   'Total Business Debt',
-  STATED_REVENUE:   'Stated Revenue',
-  CO_SALES:         'Company Sales',
-  DEBT_SALES_RATIO: 'Total Debt to Sales',
-  MAX_ALLOWED:      'Maximum Allowed',
-  LOAN_ALLOWABLE:   'Loan Allowable',
-  LOC_ALLOWABLE:    'LOC Allowable',
-  TAX_LIENS:        'Unsatisfied Tax Liens',
-  JUDGMENTS:        'Unsatisfied Judgments',
-  CC_LIMIT:         'Existing Citizens CC Limit',
-  LOC_LIMIT:        'Existing Citizens LOC Limit',
-  NEW_CC_REQ:       'New Credit Card Request',
-  NEW_LOC_REQ:      'New Line of Credit Request',
-  BIZ_REVOLVING:    'Business Revolving Debt',
-  REVOLVING_PCT:    'Revolving Credit / Sales',
-  MAX_REVOLVING:    'Maximum Revolving Allowed',
-  ALLOWABLE_AMT:    'Allowable Amount',
-  AVG_BANK_BAL:     'Avg Bank Balance (3-mo DDA)',
-  TERM_LOAN_PMT:    'Term Loan Payment (Mo)',
-  LOC_PMT:          'Line of Credit Payment (Mo)',
-  CC_PMT:           'Credit Card Payment (Mo)',
-  TOTAL_REQ_PMTS:   'Total Requested Payments',
-  BAL_PMT_RATIO:    'Balance to Payment Ratio',
-  REQ_COVERAGE:     'Required Coverage',
-  LOAN_BTPR:        'Loan – BTPR Allowable',
-  LOC_BTPR:         'LOC – BTPR Allowable',
-  // Owner sections
-  STATED_ANN_INC:   'Stated Annual Income',
-  STATED_MO_INC:    'Stated Monthly Income',
-  MO_DEBT_SVC:      'Monthly Debt Service',
-  REQ_CC_MO:        'Requested CC (Mo)',
-  REQ_LOC_MO:       'Requested LOC (Mo)',
-  TOTAL_MO_DEBT:    'Total Monthly Debt',
-  UNSEC_DTI:        'Unsecured DTI',
-  MAX_DTI:          'Max Allowed DTI',
-  BUR_MO_INC:       'Bureau Monthly Income',
-  BUR_DEBT_SVC:     'Bureau Monthly Debt Service',
-  BUR_LOC_MO:       'Bureau Requested LOC (Mo)',
-  BUR_CC_MO:        'Bureau Requested CC (Mo)',
-  BUR_TOTAL_DEBT:   'Bureau Total Monthly Debt',
-  BUR_DTI:          'Bureau DTI',
-  BUR_MAX_DTI:      'Bureau Max Allowed DTI',
-  SEC_ANN_INC:      'Stated Annual Income (Secured)',
-  SEC_MO_INC:       'Stated Monthly Income (Secured)',
-  SEC_DEBT_SVC:     'Monthly Debt Service (Secured)',
-  TERM_LOAN_MO:     'Term Loan (Mo)',
-  LOC_MO:           'Line of Credit (Mo)',
-  CC_MO:            'Credit Card (Mo)',
-  SEC_DTI:          'Secured DTI',
-  SEC_MAX_DTI:      'Max Allowed DTI (Secured)',
-};
-
-// ── Section configs: which lineIds belong under each heading ──
+// ── Section configs ───────────────────────────────────────────
 const PRIMARY_SECTIONS: any[] = [
   {
     heading: 'Total Debt to Sales',
-    resultLineId: 'DEBT_SALES_RATIO',
-    lineIds: [
-      'BIZ_TOTAL_DEBT', 'NEW_DEBT_REQ', 'TOTAL_BIZ_DEBT', 'STATED_REVENUE',
-      'CO_SALES', 'DEBT_SALES_RATIO', 'MAX_ALLOWED', 'LOAN_ALLOWABLE',
-      'LOC_ALLOWABLE', 'TAX_LIENS', 'JUDGMENTS',
-    ],
+    code: 1,
+    resultLineId: 'LIN_C14',
+    lineIds: ['LIN_C4', 'LIN_C5', 'LIN_C6', 'LIN_C7', 'LIN_C8', 'LIN_C9', 'LIN_C11', 'LIN_C12', 'LIN_C13', 'LIN_C14'],
   },
   {
     heading: 'Revolving Credit as % of Sales',
-    resultLineId: 'REVOLVING_PCT',
-    lineIds: [
-      'CC_LIMIT', 'LOC_LIMIT', 'NEW_CC_REQ', 'NEW_LOC_REQ',
-      'BIZ_REVOLVING', 'REVOLVING_PCT', 'MAX_REVOLVING', 'ALLOWABLE_AMT',
-    ],
+    code: 2,
+    resultLineId: 'LIN_C24',
+    lineIds: ['LIN_C17', 'LIN_C18', 'LIN_C19', 'LIN_C20', 'LIN_C21', 'LIN_C22', 'LIN_C23', 'LIN_C24'],
   },
   {
     heading: 'Balance to Payment Ratio',
-    resultLineId: 'BAL_PMT_RATIO',
-    lineIds: [
-      'AVG_BANK_BAL', 'TERM_LOAN_PMT', 'LOC_PMT', 'CC_PMT',
-      'TOTAL_REQ_PMTS', 'BAL_PMT_RATIO', 'REQ_COVERAGE', 'LOAN_BTPR', 'LOC_BTPR',
-    ],
+    code: 3,
+    resultLineId: 'LIN_C35',
+    lineIds: ['LIN_C27', 'LIN_C28', 'LIN_C29', 'LIN_C30', 'LIN_C31', 'LIN_C32', 'LIN_C33', 'LIN_C34', 'LIN_C35'],
   },
 ];
 
 const OWNER_SECTIONS: any[] = [
   {
     heading: 'Stated DTI (Unsecured)',
-    resultLineId: 'UNSEC_DTI',
-    lineIds: [
-      'STATED_ANN_INC', 'STATED_MO_INC', 'MO_DEBT_SVC',
-      'REQ_CC_MO', 'REQ_LOC_MO', 'TOTAL_MO_DEBT', 'UNSEC_DTI', 'MAX_DTI',
-    ],
+    code: 4,
+    resultLineId: 'LIN_J11',
+    lineIds: ['LIN_J4', 'LIN_J5', 'LIN_J6', 'LIN_J7', 'LIN_J8', 'LIN_J9', 'LIN_J10', 'LIN_J11'],
   },
   {
     heading: 'Bureau DTI (Modeled)',
-    resultLineId: 'BUR_DTI',
-    lineIds: [
-      'BUR_MO_INC', 'BUR_DEBT_SVC', 'BUR_LOC_MO',
-      'BUR_CC_MO', 'BUR_TOTAL_DEBT', 'BUR_DTI', 'BUR_MAX_DTI',
-    ],
+    code: 5,
+    resultLineId: 'LIN_J20',
+    lineIds: ['LIN_J14', 'LIN_J15', 'LIN_J16', 'LIN_J17', 'LIN_J18', 'LIN_J19', 'LIN_J20'],
   },
   {
     heading: 'Stated DTI (Secured)',
-    resultLineId: 'SEC_DTI',
-    lineIds: [
-      'SEC_ANN_INC', 'SEC_MO_INC', 'SEC_DEBT_SVC',
-      'TERM_LOAN_MO', 'LOC_MO', 'CC_MO', 'TOTAL_REQ_PMTS', 'SEC_DTI', 'SEC_MAX_DTI',
-    ],
+    code: 6,
+    resultLineId: 'LIN_J31',
+    lineIds: ['LIN_J23', 'LIN_J24', 'LIN_J25', 'LIN_J26', 'LIN_J27', 'LIN_J28', 'LIN_J29', 'LIN_J30', 'LIN_J31'],
   },
 ];
 
