@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { LimitCalculatorService } from './limit-calculator.service';
 import lineIdLabelsJson from './line-id-labels.json';
 const LINE_ID_LABELS: Record<string, string> = lineIdLabelsJson;
@@ -152,22 +153,32 @@ export class LimitCalculator implements OnInit {
     });
   }
 
-  private loadPrimaryData(appId: any, customerId: any): void {
-    this.svc.getCalculatorData(appId, customerId).subscribe({
-      next: (data: any) => {
-        this.primaryResults    = data.length ? data : PRIMARY_FALLBACK;
+  private loadPrimaryData(applicationId: any, customerId: any): void {
+    forkJoin(
+      PRIMARY_SECTIONS.map((s: any) =>
+        this.svc.getCalculatorData(applicationId, customerId, customerId, s.code)
+      )
+    ).subscribe({
+      next: (responses: any[][]) => {
+        const data = responses.flat();
+        this.primaryResults     = data.length ? data : PRIMARY_FALLBACK;
         this.primarySectionRows = this.buildSectionRows(this.primaryResults, PRIMARY_SECTIONS);
       },
       error: () => {
-        this.primaryResults    = PRIMARY_FALLBACK;
+        this.primaryResults     = PRIMARY_FALLBACK;
         this.primarySectionRows = this.buildSectionRows(PRIMARY_FALLBACK, PRIMARY_SECTIONS);
       },
     });
   }
 
-  private loadOwnerData(appId: any, customerId: any): void {
-    this.svc.getCalculatorData(appId, customerId).subscribe({
-      next: (data: any) => {
+  private loadOwnerData(applicationId: any, customerId: any): void {
+    forkJoin(
+      OWNER_SECTIONS.map((s: any) =>
+        this.svc.getCalculatorData(applicationId, customerId, customerId, s.code)
+      )
+    ).subscribe({
+      next: (responses: any[][]) => {
+        const data = responses.flat();
         this.ownerResults     = data.length ? data : OWNER_FALLBACK;
         this.ownerSectionRows = this.buildSectionRows(this.ownerResults, OWNER_SECTIONS);
         this.hasOwnerData     = true;
