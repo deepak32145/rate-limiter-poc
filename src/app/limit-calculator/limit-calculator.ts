@@ -1,7 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
 import { LimitCalculatorService } from './limit-calculator.service';
 import lineIdLabelsJson from './line-id-labels.json';
 const LINE_ID_LABELS: Record<string, string> = lineIdLabelsJson;
@@ -15,59 +14,21 @@ const SEED_SESSION: any[] = [
   { applicationId: 'APP001', customerId: 'CUS003', customerName: 'Maria Garcia' },
 ];
 
-// ── Section configs ───────────────────────────────────────────
+// ── Section configs — tabId matches applicationScreenTabId from API ──
 const PRIMARY_SECTIONS: any[] = [
-  {
-    heading: 'Total Debt to Sales',
-    code: 1,
-    resultLineId: 'LIN_C14',
-    lineIds: ['LIN_C4', 'LIN_C5', 'LIN_C6', 'LIN_C7', 'LIN_C8', 'LIN_C9', 'LIN_C11', 'LIN_C12', 'LIN_C13', 'LIN_C14'],
-  },
-  {
-    heading: 'Revolving Credit as % of Sales',
-    code: 2,
-    resultLineId: 'LIN_C24',
-    lineIds: ['LIN_C17', 'LIN_C18', 'LIN_C19', 'LIN_C20', 'LIN_C21', 'LIN_C22', 'LIN_C23', 'LIN_C24'],
-  },
-  {
-    heading: 'Balance to Payment Ratio',
-    code: 3,
-    resultLineId: 'LIN_C35',
-    lineIds: ['LIN_C27', 'LIN_C28', 'LIN_C29', 'LIN_C30', 'LIN_C31', 'LIN_C32', 'LIN_C33', 'LIN_C34', 'LIN_C35'],
-  },
+  { heading: 'Total Debt to Sales',            tabId: 'TDS', resultLineId: 'TDSC14' },
+  { heading: 'Revolving Credit as % of Sales', tabId: 'RCS', resultLineId: 'RCSC24' },
+  { heading: 'Balance to Payment Ratio',       tabId: 'BTP', resultLineId: 'BTPC35' },
 ];
 
 const OWNER_SECTIONS: any[] = [
-  {
-    heading: 'Stated DTI (Unsecured)',
-    code: 4,
-    resultLineId: 'LIN_J11',
-    lineIds: ['LIN_J4', 'LIN_J5', 'LIN_J6', 'LIN_J7', 'LIN_J8', 'LIN_J9', 'LIN_J10', 'LIN_J11'],
-  },
-  {
-    heading: 'Bureau DTI (Modeled)',
-    code: 5,
-    resultLineId: 'LIN_J20',
-    lineIds: ['LIN_J14', 'LIN_J15', 'LIN_J16', 'LIN_J17', 'LIN_J18', 'LIN_J19', 'LIN_J20'],
-  },
-  {
-    heading: 'Stated DTI (Secured)',
-    code: 6,
-    resultLineId: 'LIN_J31',
-    lineIds: ['LIN_J23', 'LIN_J24', 'LIN_J25', 'LIN_J26', 'LIN_J27', 'LIN_J28', 'LIN_J29', 'LIN_J30', 'LIN_J31'],
-  },
+  { heading: 'Stated DTI (Unsecured)', tabId: 'SDU', resultLineId: 'DRSJ11' },
+  { heading: 'Bureau DTI (Modeled)',   tabId: 'MBD', resultLineId: 'DRSJ20' },
+  { heading: 'Stated DTI (Secured)',   tabId: 'SDI', resultLineId: 'DRSJ31' },
 ];
 
-// ── Fallback mock data (used when API call errors) ───────────
-const PRIMARY_FALLBACK: any[] = PRIMARY_SECTIONS
-  .flatMap((s: any) => s.lineIds.map((id: any) => ({
-    applicationId: 'APP001', customerId: 'BUS001', applicationScreenTabId: 'CLC', lineDetails: id, calculatedAmt: '—',
-  })));
-
-const OWNER_FALLBACK: any[] = OWNER_SECTIONS
-  .flatMap((s: any) => s.lineIds.map((id: any) => ({
-    applicationId: 'APP001', customerId: 'CUS001', applicationScreenTabId: 'CLC', lineDetails: id, calculatedAmt: '—',
-  })));
+const PRIMARY_FALLBACK: any[] = [];
+const OWNER_FALLBACK:   any[] = [];
 
 @Component({
   selector: 'app-limit-calculator',
@@ -140,27 +101,21 @@ export class LimitCalculator implements OnInit {
     sections: any[],
   ): { heading: string; result: { label: string; calculatedAmt: any } | null; rows: { label: string; calculatedAmt: any }[] }[] {
     return sections.map((s: any) => {
-      const resultRaw = results.find((r: any) => r.lineDetails === s.resultLineId) ?? null;
+      const sectionData = results.filter((r: any) => r.applicationScreenTabId === s.tabId);
+      const resultRaw   = sectionData.find((r: any) => r.lineDetails === s.resultLineId) ?? null;
       const result = resultRaw
         ? { label: LINE_ID_LABELS[resultRaw.lineDetails] ?? resultRaw.lineDetails, calculatedAmt: this.formatValue(resultRaw.calculatedAmt) }
         : null;
-      const rows = s.lineIds
-        .filter((id: any) => id !== s.resultLineId)
-        .map((id: any) => results.find((r: any) => r.lineDetails === id))
-        .filter(Boolean)
+      const rows = sectionData
+        .filter((r: any) => r.lineDetails !== s.resultLineId)
         .map((r: any) => ({ label: LINE_ID_LABELS[r.lineDetails] ?? r.lineDetails, calculatedAmt: this.formatValue(r.calculatedAmt) }));
       return { heading: s.heading, result, rows };
     });
   }
 
   private loadPrimaryData(applicationId: any, customerId: any): void {
-    forkJoin(
-      PRIMARY_SECTIONS.map((s: any) =>
-        this.svc.getCalculatorData(applicationId, customerId, customerId, s.code)
-      )
-    ).subscribe({
-      next: (responses: any[][]) => {
-        const data = responses.flat();
+    this.svc.getCalculatorData(applicationId, customerId).subscribe({
+      next: (data: any) => {
         this.primaryResults     = data.length ? data : PRIMARY_FALLBACK;
         this.primarySectionRows = this.buildSectionRows(this.primaryResults, PRIMARY_SECTIONS);
       },
@@ -172,13 +127,8 @@ export class LimitCalculator implements OnInit {
   }
 
   private loadOwnerData(applicationId: any, customerId: any): void {
-    forkJoin(
-      OWNER_SECTIONS.map((s: any) =>
-        this.svc.getCalculatorData(applicationId, customerId, customerId, s.code)
-      )
-    ).subscribe({
-      next: (responses: any[][]) => {
-        const data = responses.flat();
+    this.svc.getCalculatorData(applicationId, customerId).subscribe({
+      next: (data: any) => {
         this.ownerResults     = data.length ? data : OWNER_FALLBACK;
         this.ownerSectionRows = this.buildSectionRows(this.ownerResults, OWNER_SECTIONS);
         this.hasOwnerData     = true;
